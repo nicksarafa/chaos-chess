@@ -27,8 +27,8 @@
   }
   .controls button:hover { filter: brightness(1.1); }
   .main { display: grid; grid-template-columns: auto 260px; gap: 16px; align-items: start; }
-.board-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.board-shell { position: relative; }
+  .board-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .board-shell { position: relative; padding-bottom: 20px; padding-left: 20px; }
 .coords.files { position: absolute; left: 0; right: 0; bottom: -18px; }
 .coords.ranks { position: absolute; top: 0; left: -18px; }
   .board {
@@ -36,8 +36,9 @@
     border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     cursor: pointer;
   }
-.hand-row { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-.card { width: 140px; min-height: 150px; }
+  .hand-row { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; flex-wrap: nowrap; justify-content: center; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .hand-row::-webkit-scrollbar { display: none; }
+  .card { width: 140px; min-height: 150px; flex: 0 0 auto; }
 .card .timer { margin-top: 8px; font-size: 20px; font-weight: 800; color: #ffd966; text-align: center; }
 .card.active { outline: 3px solid #2ecc71; }
 .card.state-warning { outline-color: #ffd166; }
@@ -85,7 +86,32 @@
   #promoChoices button:hover { filter: brightness(1.15); }
   
   @media (min-width: 901px) { :root { --square: 84px; } }
-  @media (max-width: 900px) { :root { --square: 56px; } .main { grid-template-columns: 1fr; } .sidebar { order: 2; } .board-wrap { order: 1; } }
+  @media (max-width: 900px) {
+    :root { --square: 56px; }
+    .main { grid-template-columns: 1fr; }
+    .sidebar { order: 2; }
+    .board-wrap { order: 1; }
+  }
+  @media (max-width: 600px) {
+    :root { --square: 48px; }
+    .card { width: 120px; min-height: 136px; }
+    .card .timer { font-size: 18px; }
+    .controls button { padding: 10px 14px; }
+  }
+  @media (max-width: 420px) {
+    :root { --square: 44px; }
+    .card { width: 110px; min-height: 128px; }
+    .coords .cell { font-size: 10px; }
+  }
+  @media (max-width: 360px) {
+    :root { --square: 40px; }
+    .coords.files, .coords.ranks { display: none; }
+    .board-shell { padding: 0; }
+  }
+
+  /* Improve touch interactions */
+  body, .board, .card { -webkit-tap-highlight-color: transparent; }
+  .board { touch-action: manipulation; }
 
   /* Balatro-style hands */
   .hands { margin-top: 16px; }
