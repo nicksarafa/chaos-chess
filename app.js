@@ -107,6 +107,9 @@
   let chaosDeadlineTs = 0;
   let chaosTickerId = null;
   const chaosCountdownSpan = document.getElementById('chaosCountdown');
+  let fogHideColor = null; // 'w' or 'b' to dim that side's pieces
+  let forcedGameOver = false;
+  let forcedGameOverMessage = '';
 
   const CHAOS_RULES = [
     {
@@ -118,6 +121,7 @@
         if (all.length === 0) return;
         const victim = randomChoice(all);
         game.remove(victim.square);
+        detectForcedGameOver();
       },
       onMove(_move) {
         // one-off effect only
@@ -137,6 +141,7 @@
         // Upgrade piece at target.square to queen
         game.remove(target.square);
         game.put({ type: 'q', color: moverColor }, target.square);
+        detectForcedGameOver();
       },
       onDisable() {}
     },
@@ -158,6 +163,311 @@
         game.remove(other.square);
         game.put(otherPiece, movedTo);
         game.put(movedPiece, other.square);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'blinkSelf',
+      name: 'Blink (Self)',
+      desc: 'After each move, a random friendly non-king teleports to a random empty square.',
+      onEnable() {},
+      onMove(move) {
+        const friends = listAllPieces({ color: move.color, excludeKings: true });
+        const empties = listEmptySquares();
+        if (!friends.length || !empties.length) return;
+        const piece = randomChoice(friends);
+        const dest = randomChoice(empties);
+        const p = game.get(piece.square);
+        if (!p) return;
+        game.remove(piece.square);
+        game.put(p, dest);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'blinkEnemy',
+      name: 'Blink (Enemy)',
+      desc: 'After each move, a random enemy non-king teleports to a random empty square.',
+      onEnable() {},
+      onMove(move) {
+        const enemyColor = move.color === 'w' ? 'b' : 'w';
+        const foes = listAllPieces({ color: enemyColor, excludeKings: true });
+        const empties = listEmptySquares();
+        if (!foes.length || !empties.length) return;
+        const piece = randomChoice(foes);
+        const dest = randomChoice(empties);
+        const p = game.get(piece.square);
+        if (!p) return;
+        game.remove(piece.square);
+        game.put(p, dest);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'pawnHop',
+      name: 'Pawn Hop',
+      desc: "After each move, a random friendly pawn hops forward one square if it's empty.",
+      onEnable() {},
+      onMove(move) {
+        const pawns = listAllPieces({ color: move.color, types: ['p'] });
+        if (!pawns.length) return;
+        const sel = shuffle([...pawns]);
+        for (const it of sel) {
+          const dest = stepForward(it.square, move.color, 1);
+          if (dest && !game.get(dest)) {
+            const p = game.get(it.square);
+            game.remove(it.square);
+            game.put(p, dest);
+            break;
+          }
+        }
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'berserker',
+      name: 'Berserker',
+      desc: 'After each move, if the moved piece can capture immediately, it performs a random capture.',
+      onEnable() {},
+      onMove(move) {
+        const opts = game.moves({ square: move.to, verbose: true }).filter(m => (m.flags || '').includes('c') || (m.flags || '').includes('e'));
+        if (!opts.length) return;
+        const cap = randomChoice(opts);
+        game.move(cap);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'healingRain',
+      name: 'Healing Rain',
+      desc: 'One-time: summon a random minor piece for each side on a random empty home-half square.',
+      onEnable() {
+        ['w','b'].forEach(color => {
+          const empties = listEmptySquaresInHalf(color);
+          if (!empties.length) return;
+          const sq = randomChoice(empties);
+          const type = randomChoice(['n','b']);
+          game.put({ type, color }, sq);
+        });
+        detectForcedGameOver();
+      },
+      onMove() {},
+      onDisable() {}
+    },
+    {
+      key: 'veil',
+      name: 'Veil of Shadows',
+      desc: 'Opponent pieces are veiled (dimmed).',
+      onEnable() {
+        fogHideColor = game.turn() === 'w' ? 'b' : 'w';
+      },
+      onMove() {
+        fogHideColor = game.turn() === 'w' ? 'b' : 'w';
+      },
+      onDisable() { fogHideColor = null; }
+    },
+    {
+      key: 'cornerLava',
+      name: 'Corner Lava',
+      desc: 'Any piece in a corner square is burned away (kings are immune).',
+      onEnable() {},
+      onMove() {
+        ['a1','h1','a8','h8'].forEach(sq => {
+          const p = game.get(sq);
+          if (p && p.type !== 'k') game.remove(sq);
+        });
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'spectralSwap',
+      name: 'Spectral Swap',
+      desc: 'After each move, swap two random friendly non-king pieces.',
+      onEnable() {},
+      onMove(move) {
+        const pieces = listAllPieces({ color: move.color, excludeKings: true });
+        if (pieces.length < 2) return;
+        const a = randomChoice(pieces);
+        let b = randomChoice(pieces);
+        let guard = 0;
+        while (b.square === a.square && guard++ < 10) b = randomChoice(pieces);
+        if (a.square === b.square) return;
+        const pa = game.get(a.square);
+        const pb = game.get(b.square);
+        game.remove(a.square); game.remove(b.square);
+        game.put(pb, a.square); game.put(pa, b.square);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'frenzy',
+      name: 'Frenzy',
+      desc: 'After each move, a random friendly pawn mutates into a random piece (Q/R/B/N).',
+      onEnable() {},
+      onMove(move) {
+        const pawns = listAllPieces({ color: move.color, types: ['p'] });
+        if (!pawns.length) return;
+        const target = randomChoice(pawns);
+        const t = randomChoice(['q','r','b','n']);
+        game.remove(target.square);
+        game.put({ type: t, color: move.color }, target.square);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'queenless',
+      name: 'Queenless Chaos',
+      desc: 'One-time: all queens vanish from the board.',
+      onEnable() {
+        const qs = listAllPieces({ types: ['q'] });
+        qs.forEach(q => game.remove(q.square));
+        detectForcedGameOver();
+      },
+      onMove() {},
+      onDisable() {}
+    },
+    {
+      key: 'knightRain',
+      name: 'Knight Rain',
+      desc: 'One-time: a random knight spawns for each side in its home half.',
+      onEnable() {
+        ['w','b'].forEach(color => {
+          const empties = listEmptySquaresInHalf(color);
+          if (!empties.length) return;
+          const sq = randomChoice(empties);
+          game.put({ type: 'n', color }, sq);
+        });
+        detectForcedGameOver();
+      },
+      onMove() {},
+      onDisable() {}
+    },
+    {
+      key: 'rookRoll',
+      name: 'Rook Roll',
+      desc: 'After each move, a random friendly rook slides one file left/right if empty.',
+      onEnable() {},
+      onMove(move) {
+        const rooks = listAllPieces({ color: move.color, types: ['r'] });
+        if (!rooks.length) return;
+        const r = randomChoice(rooks);
+        const fileIdx = files.indexOf(r.square[0]);
+        const rank = parseInt(r.square[1], 10);
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        const nf = fileIdx + dir;
+        if (nf < 0 || nf > 7) return;
+        const dest = `${files[nf]}${rank}`;
+        if (!game.get(dest)) {
+          const piece = game.get(r.square);
+          game.remove(r.square);
+          game.put(piece, dest);
+          detectForcedGameOver();
+        }
+      },
+      onDisable() {}
+    },
+    {
+      key: 'bishopSlide',
+      name: 'Bishop Slide',
+      desc: 'After each move, a random friendly bishop slides one random diagonal if empty.',
+      onEnable() {},
+      onMove(move) {
+        const bishops = listAllPieces({ color: move.color, types: ['b'] });
+        if (!bishops.length) return;
+        const b = randomChoice(bishops);
+        const fileIdx = files.indexOf(b.square[0]);
+        const rank = parseInt(b.square[1], 10);
+        const dirs = [[1,1],[1,-1],[-1,1],[-1,-1]];
+        const [df, dr] = randomChoice(dirs);
+        const nf = fileIdx + df; const nr = rank + dr;
+        if (nf < 0 || nf > 7 || nr < 1 || nr > 8) return;
+        const dest = `${files[nf]}${nr}`;
+        if (!game.get(dest)) {
+          const p = game.get(b.square);
+          game.remove(b.square);
+          game.put(p, dest);
+          detectForcedGameOver();
+        }
+      },
+      onDisable() {}
+    },
+    {
+      key: 'enemyNudge',
+      name: 'Enemy Nudge',
+      desc: 'After each move, a random enemy pawn advances one square if empty.',
+      onEnable() {},
+      onMove(move) {
+        const enemy = move.color === 'w' ? 'b' : 'w';
+        const pawns = listAllPieces({ color: enemy, types: ['p'] });
+        if (!pawns.length) return;
+        const shuffled = shuffle(pawns);
+        for (const it of shuffled) {
+          const dest = stepForward(it.square, enemy, 1);
+          if (dest && !game.get(dest)) {
+            const p = game.get(it.square);
+            game.remove(it.square);
+            game.put(p, dest);
+            break;
+          }
+        }
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'pawnExplosion',
+      name: 'Pawn Explosion',
+      desc: 'After each move, remove one random pawn from each side (if any).',
+      onEnable() {},
+      onMove() {
+        ['w','b'].forEach(color => {
+          const pawns = listAllPieces({ color, types: ['p'] });
+          if (pawns.length) {
+            const v = randomChoice(pawns);
+            game.remove(v.square);
+          }
+        });
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'wallBuilder',
+      name: 'Wall Builder',
+      desc: 'After each move, spawn a friendly pawn on rank 3 (White) / 6 (Black) at a random empty file.',
+      onEnable() {},
+      onMove(move) {
+        const rank = move.color === 'w' ? 3 : 6;
+        const empties = files.map(f => `${f}${rank}`).filter(sq => !game.get(sq));
+        if (!empties.length) return;
+        const sq = randomChoice(empties);
+        game.put({ type: 'p', color: move.color }, sq);
+        detectForcedGameOver();
+      },
+      onDisable() {}
+    },
+    {
+      key: 'jester',
+      name: 'Jester',
+      desc: 'After each move, mutate a random friendly non-king piece into another type (Q/R/B/N/P).',
+      onEnable() {},
+      onMove(move) {
+        const pool = listAllPieces({ color: move.color, excludeKings: true });
+        if (!pool.length) return;
+        const target = randomChoice(pool);
+        const newType = randomChoice(['q','r','b','n','p']);
+        const color = move.color;
+        game.remove(target.square);
+        game.put({ type: newType, color }, target.square);
+        detectForcedGameOver();
       },
       onDisable() {}
     }
@@ -167,6 +477,49 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
   function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function shuffle(arr) { for (let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+  function listEmptySquares() {
+    const out = [];
+    for (let fi = 0; fi < 8; fi++) {
+      for (let r = 1; r <= 8; r++) {
+        const sq = `${files[fi]}${r}`;
+        if (!game.get(sq)) out.push(sq);
+      }
+    }
+    return out;
+  }
+  function listEmptySquaresInHalf(color) {
+    const ranks = color === 'w' ? [1,2,3,4] : [5,6,7,8];
+    const out = [];
+    for (let fi = 0; fi < 8; fi++) {
+      for (const r of ranks) {
+        const sq = `${files[fi]}${r}`;
+        if (!game.get(sq)) out.push(sq);
+      }
+    }
+    return out;
+  }
+  function stepForward(square, color, steps) {
+    const file = square[0];
+    const rank = parseInt(square[1], 10);
+    const nr = color === 'w' ? rank + steps : rank - steps;
+    if (nr < 1 || nr > 8) return null;
+    return `${file}${nr}`;
+  }
+  function resetChaosVisuals() { fogHideColor = null; }
+  function detectForcedGameOver() {
+    const kings = listAllPieces({ types: ['k'] });
+    const hasW = kings.some(k => k.piece.color === 'w');
+    const hasB = kings.some(k => k.piece.color === 'b');
+    if (!hasW || !hasB) {
+      forcedGameOver = true;
+      forcedGameOverMessage = !hasW ? 'White king captured. Black wins.' : 'Black king captured. White wins.';
+      if (chaosTickerId) { clearInterval(chaosTickerId); chaosTickerId = null; }
+      selected = null; legalDests.clear();
+      return true;
+    }
+    return false;
+  }
 
   function listAllPieces(opts = {}) {
     const { color, excludeKings, excludeSquares = [], types } = opts;
@@ -193,11 +546,12 @@
     if (chaosActiveRule && chaosActiveRule.onDisable) chaosActiveRule.onDisable();
     chaosActiveRule = rule;
     chaosRuleEl.textContent = rule ? `${rule.name}: ${rule.desc}` : '';
+    resetChaosVisuals();
     if (rule && rule.onEnable) rule.onEnable();
   }
 
   function scheduleChaos() {
-    const nextInMs = randomInt(1000, 11000);
+    const nextInMs = 20000; // 20 seconds fixed
     chaosDeadlineTs = Date.now() + nextInMs;
   }
 
@@ -207,9 +561,11 @@
     chaosTickerId = setInterval(() => {
       const remain = Math.max(0, chaosDeadlineTs - Date.now());
       if (chaosCountdownSpan) chaosCountdownSpan.textContent = `${Math.ceil(remain / 1000)}s`;
+      if (forcedGameOver) { clearInterval(chaosTickerId); chaosTickerId = null; return; }
       if (remain <= 0) {
         // New rule time: pick random and replace previous
         setChaosRule(randomChoice(CHAOS_RULES));
+        detectForcedGameOver();
         scheduleChaos();
         renderBoard();
         updateStatus();
@@ -278,6 +634,9 @@
               img.alt = key;
               img.draggable = false;
               img.className = 'piece-img';
+              if (fogHideColor && pieceInfo.color === fogHideColor) {
+                img.style.opacity = '0.35';
+              }
               sqEl.appendChild(img);
             }
           }
@@ -310,7 +669,11 @@
       turnEl.textContent = turn;
   
       let text = '';
-      if (isGameOver()) {
+      if (forcedGameOver || isGameOver()) {
+        if (forcedGameOver) {
+          stateEl.textContent = forcedGameOverMessage;
+          return;
+        }
         if (game.in_checkmate()) text = `Checkmate. ${turn === 'White' ? 'Black' : 'White'} wins.`;
         else if (game.in_stalemate()) text = 'Stalemate.';
         else if (isDrawByFiftyMoves()) text = 'Draw (50-move rule).';
@@ -385,10 +748,12 @@
         const move = promotion ? { from, to, promotion } : { from, to };
         const res = game.move(move);
         if (!res) return; // illegal
+        if (detectForcedGameOver()) { renderBoard(); updateStatus(); return; }
         // Apply chaos rule post-move effects
         if (chaosActiveRule && typeof chaosActiveRule.onMove === 'function') {
           chaosActiveRule.onMove(res);
         }
+        if (detectForcedGameOver()) { renderBoard(); updateStatus(); return; }
         lastMoveSquares = [from, to];
         selected = null;
         legalDests.clear();
