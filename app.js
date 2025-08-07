@@ -13,6 +13,20 @@
     promoModal.innerHTML = '<div class="card"><div>Promote to:</div><div id="promoChoices"></div></div>';
     document.body.appendChild(promoModal);
     const promoChoicesEl = promoModal.querySelector('#promoChoices');
+
+  // Chaos UI
+  const chaosTimerEl = document.createElement('div');
+  chaosTimerEl.id = 'chaosTimer';
+  chaosTimerEl.style.marginTop = '6px';
+  const chaosRuleEl = document.createElement('div');
+  chaosRuleEl.id = 'chaosRule';
+  const statusBox = document.querySelector('.status');
+  if (statusBox) {
+    const h = document.createElement('div');
+    h.innerHTML = '<strong>Chaos:</strong> <span id="chaosCountdown"></span>';
+    statusBox.appendChild(h);
+    statusBox.appendChild(chaosRuleEl);
+  }
   
     const files = ['a','b','c','d','e','f','g','h'];
     let orientation = 'w'; // White at bottom by default
@@ -87,6 +101,124 @@
     
     // Start initialization
     initGame();
+
+  // ========== CHAOS ENGINE ==========
+  let chaosActiveRule = null;
+  let chaosDeadlineTs = 0;
+  let chaosTickerId = null;
+  const chaosCountdownSpan = document.getElementById('chaosCountdown');
+
+  const CHAOS_RULES = [
+    {
+      key: 'meteor',
+      name: 'Meteor Strike',
+      desc: 'A random non-king piece is obliterated on impact.',
+      onEnable() {
+        const all = listAllPieces({ excludeKings: true });
+        if (all.length === 0) return;
+        const victim = randomChoice(all);
+        game.remove(victim.square);
+      },
+      onMove(_move) {
+        // one-off effect only
+      },
+      onDisable() {}
+    },
+    {
+      key: 'power',
+      name: 'Power Surge',
+      desc: 'After each move, one of mover\'s pieces upgrades to a queen.',
+      onEnable() {},
+      onMove(move) {
+        const moverColor = move.color; // 'w' or 'b'
+        const candidates = listAllPieces({ color: moverColor, types: ['p','n','b','r'] });
+        if (candidates.length === 0) return;
+        const target = randomChoice(candidates);
+        // Upgrade piece at target.square to queen
+        game.remove(target.square);
+        game.put({ type: 'q', color: moverColor }, target.square);
+      },
+      onDisable() {}
+    },
+    {
+      key: 'trickster',
+      name: 'Trickster Swap',
+      desc: 'After each move, swap the moved piece with a random friendly piece (not king).',
+      onEnable() {},
+      onMove(move) {
+        const moverColor = move.color;
+        const movedTo = move.to; // algebraic square
+        const sameSide = listAllPieces({ color: moverColor, excludeKings: true, excludeSquares: [movedTo] });
+        if (sameSide.length === 0) return;
+        const other = randomChoice(sameSide);
+        const movedPiece = game.get(movedTo);
+        const otherPiece = game.get(other.square);
+        if (!movedPiece || !otherPiece) return;
+        game.remove(movedTo);
+        game.remove(other.square);
+        game.put(otherPiece, movedTo);
+        game.put(movedPiece, other.square);
+      },
+      onDisable() {}
+    }
+  ];
+
+  function randomInt(min, max) { // inclusive
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+  function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function listAllPieces(opts = {}) {
+    const { color, excludeKings, excludeSquares = [], types } = opts;
+    const out = [];
+    const b = game.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = b[r][c];
+        if (!p) continue;
+        if (color && p.color !== color) continue;
+        if (excludeKings && p.type === 'k') continue;
+        if (types && !types.includes(p.type)) continue;
+        const file = 'abcdefgh'[c];
+        const rank = 8 - r;
+        const sq = `${file}${rank}`;
+        if (excludeSquares.includes(sq)) continue;
+        out.push({ square: sq, piece: p });
+      }
+    }
+    return out;
+  }
+
+  function setChaosRule(rule) {
+    if (chaosActiveRule && chaosActiveRule.onDisable) chaosActiveRule.onDisable();
+    chaosActiveRule = rule;
+    chaosRuleEl.textContent = rule ? `${rule.name}: ${rule.desc}` : '';
+    if (rule && rule.onEnable) rule.onEnable();
+  }
+
+  function scheduleChaos() {
+    const nextInMs = randomInt(1000, 11000);
+    chaosDeadlineTs = Date.now() + nextInMs;
+  }
+
+  function startChaosTicker() {
+    if (chaosTickerId) clearInterval(chaosTickerId);
+    scheduleChaos();
+    chaosTickerId = setInterval(() => {
+      const remain = Math.max(0, chaosDeadlineTs - Date.now());
+      if (chaosCountdownSpan) chaosCountdownSpan.textContent = `${Math.ceil(remain / 1000)}s`;
+      if (remain <= 0) {
+        // New rule time: pick random and replace previous
+        setChaosRule(randomChoice(CHAOS_RULES));
+        scheduleChaos();
+        renderBoard();
+        updateStatus();
+      }
+    }, 250);
+  }
+
+  // start chaos system after DOM is ready
+  startChaosTicker();
   
     function squareAt(fileIndex, rankIndexFromTop) {
       // rankIndexFromTop: 0..7 from top of UI
@@ -253,6 +385,10 @@
         const move = promotion ? { from, to, promotion } : { from, to };
         const res = game.move(move);
         if (!res) return; // illegal
+        // Apply chaos rule post-move effects
+        if (chaosActiveRule && typeof chaosActiveRule.onMove === 'function') {
+          chaosActiveRule.onMove(res);
+        }
         lastMoveSquares = [from, to];
         selected = null;
         legalDests.clear();
