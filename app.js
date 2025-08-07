@@ -3,6 +3,8 @@
     const turnEl = document.getElementById('turn');
     const stateEl = document.getElementById('state');
     const movesEl = document.getElementById('moves');
+  const whiteTimeEl = document.getElementById('whiteTime');
+  const blackTimeEl = document.getElementById('blackTime');
   
     const newGameBtn = document.getElementById('newGameBtn');
     const undoBtn = document.getElementById('undoBtn');
@@ -33,6 +35,11 @@
     let selected = null;   // selected square like 'e2'
     let legalDests = new Set();
     let lastMoveSquares = [];
+  // Clocks
+  let whiteMs = 5 * 60 * 1000; // 5 minutes in ms
+  let blackMs = 5 * 60 * 1000;
+  let clockIntervalId = null;
+  let lastTickTs = 0;
   
     const pieceImage = {
       wp: 'assets/pieces/cburnett/Chess_plt45.svg',
@@ -573,8 +580,10 @@
     }, 250);
   }
 
-  // start chaos system after DOM is ready
+  // start chaos system and chess clock after DOM is ready
   startChaosTicker();
+  resetClocks();
+  startClockForTurn();
   
     function squareAt(fileIndex, rankIndexFromTop) {
       // rankIndexFromTop: 0..7 from top of UI
@@ -697,6 +706,10 @@
         li.textContent = blackMove ? `${whiteMove}  ${blackMove}` : `${whiteMove}`;
         movesEl.appendChild(li);
       }
+
+      // Clocks rendering
+      if (whiteTimeEl) whiteTimeEl.textContent = formatMs(whiteMs);
+      if (blackTimeEl) blackTimeEl.textContent = formatMs(blackMs);
     }
   
     function setSelection(square) {
@@ -757,6 +770,7 @@
         lastMoveSquares = [from, to];
         selected = null;
         legalDests.clear();
+        switchClock();
         renderBoard();
         updateStatus();
       } catch (_) {
@@ -801,6 +815,49 @@
       return null;
     }
 
+    // Chess clock helpers
+    function formatMs(ms) {
+      const m = Math.max(0, Math.floor(ms / 60000));
+      const s = Math.max(0, Math.floor((ms % 60000) / 1000));
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+    function resetClocks() {
+      whiteMs = 5 * 60 * 1000;
+      blackMs = 5 * 60 * 1000;
+      stopClock();
+      if (whiteTimeEl) whiteTimeEl.textContent = formatMs(whiteMs);
+      if (blackTimeEl) blackTimeEl.textContent = formatMs(blackMs);
+    }
+    function stopClock() {
+      if (clockIntervalId) { clearInterval(clockIntervalId); clockIntervalId = null; }
+    }
+    function startClockForTurn() {
+      stopClock();
+      lastTickTs = performance.now();
+      clockIntervalId = setInterval(() => {
+        const now = performance.now();
+        const delta = now - lastTickTs;
+        lastTickTs = now;
+        if (game.turn() === 'w') {
+          whiteMs -= delta;
+          if (whiteMs <= 0) {
+            whiteMs = 0; stopClock();
+            forcedGameOver = true; forcedGameOverMessage = 'White ran out of time. Black wins.';
+          }
+        } else {
+          blackMs -= delta;
+          if (blackMs <= 0) {
+            blackMs = 0; stopClock();
+            forcedGameOver = true; forcedGameOverMessage = 'Black ran out of time. White wins.';
+          }
+        }
+        updateStatus();
+      }, 100);
+    }
+    function switchClock() {
+      startClockForTurn();
+    }
+
     // Button event listeners
     function setupButtons() {
       newGameBtn.addEventListener('click', () => {
@@ -808,6 +865,8 @@
           // Start standard position: White to move
           game.reset();
           selected = null; legalDests.clear(); lastMoveSquares = [];
+          resetClocks();
+          startClockForTurn();
           renderBoard(); updateStatus();
         }
       });
@@ -815,6 +874,8 @@
         if (game) {
           game.undo();
           selected = null; legalDests.clear(); lastMoveSquares = [];
+          // After undo, restart clock for current turn
+          startClockForTurn();
           renderBoard(); updateStatus();
         }
       });
