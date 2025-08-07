@@ -11,3 +11,16 @@ The goal of this project is to make chess fun again, and push the limits of chao
 Any ideas? Please open as issues.
 
 Much love.
+
+[Play Chaos Chess](https://chaoschess.com)
+
+# Follow The Progress
+
+- [Twitter](https://twitter.com/nicksarafa/)
+- [LinkedIn](https://www.linkedin.com/in/nsarafa/)
+- [Facebook](https://www.facebook.com/nicksarafa)
+- [Instagram](https://instagram.com/nicksarafa)
+- [TikTok](https://www.tiktok.com/@nicksarafa)
+- [YouTube](https://www.youtube.com/@NickSarafa)
+- [Twitch](https://www.twitch.tv/nicksarafa)
+- [Newsletter Signup](https://nicksarafa.beehiiv.com/subscribe)
