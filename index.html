@@ -20,9 +20,13 @@
 
     <main class="main">
       <section class="board-wrap">
-        <div id="board" class="board" aria-label="Chess board" role="grid"></div>
-        <div class="coords files" aria-hidden="true"></div>
-        <div class="coords ranks" aria-hidden="true"></div>
+        <ul id="topHand" class="hand-row"></ul>
+        <div class="board-shell">
+          <div id="board" class="board" aria-label="Chess board" role="grid"></div>
+          <div class="coords files" aria-hidden="true"></div>
+          <div class="coords ranks" aria-hidden="true"></div>
+        </div>
+        <ul id="bottomHand" class="hand-row"></ul>
       </section>
       <aside class="sidebar">
         <div class="status">

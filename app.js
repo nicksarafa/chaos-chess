@@ -19,8 +19,10 @@
   // Chaos UI
   const chaosRuleEl = document.getElementById('chaosRule');
   const chaosRarityEl = document.getElementById('chaosRarity');
-  // re-declared earlier
+  const chaosCountdownSpan = document.getElementById('chaosCountdown');
   const allRulesEl = document.getElementById('allRules');
+  const topHandEl = document.getElementById('topHand');
+  const bottomHandEl = document.getElementById('bottomHand');
   
     const files = ['a','b','c','d','e','f','g','h'];
     let orientation = 'w'; // White at bottom by default
@@ -105,11 +107,12 @@
   let chaosActiveRule = null;
   let chaosDeadlineTs = 0;
   let chaosTickerId = null;
-  const chaosCountdownSpan = document.getElementById('chaosCountdown');
   let fogHideColor = null; // 'w' or 'b' to dim that side's pieces
   let forcedGameOver = false;
   let forcedGameOverMessage = '';
   let hasGameStarted = false;
+  // Per-card timers storage
+  const activeCardTimers = new Set();
 
   const CHAOS_RULES = [
     {
@@ -507,6 +510,55 @@
     const pool = CHAOS_RULES.filter(r => r.rarity === target);
     return randomChoice(pool.length ? pool : CHAOS_RULES);
   }
+  function renderHands() {
+    if (!topHandEl || !bottomHandEl) return;
+    topHandEl.innerHTML = '';
+    bottomHandEl.innerHTML = '';
+    for (let i = 0; i < 3; i++) topHandEl.appendChild(createCard(pickChaosRuleByRarity(), 'b'));
+    for (let i = 0; i < 3; i++) bottomHandEl.appendChild(createCard(pickChaosRuleByRarity(), 'w'));
+  }
+  function createCard(rule, side) {
+    const timedKeys = ['blinkSelf','blinkEnemy','pawnHop','berserker','veil','spectralSwap','frenzy','rookRoll','bishopSlide','enemyNudge','wallBuilder','jester'];
+    const oneTimeKeys = ['meteor','power','healingRain','cornerLava','queenless','knightRain','pawnExplosion'];
+    const isTimed = timedKeys.includes(rule.key);
+    const isOneTime = oneTimeKeys.includes(rule.key);
+    const li = document.createElement('li');
+    li.className = 'card';
+    li.innerHTML = `<div class="name">${rule.name}</div><div class="desc">${rule.desc}</div><div class="rarity ${rule.rarity}">${rule.rarity}</div>${isTimed ? '<div class="timer"></div>' : ''}`;
+    li.addEventListener('click', () => {
+      if (li.dataset.played === '1') return; // prevent double-click
+      li.dataset.played = '1';
+      if (isOneTime) {
+        li.classList.add('active');
+        // Immediate effect without needing a board click
+        setChaosRule(rule, { side });
+        li.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 300, iterations: 2 });
+        setTimeout(() => {
+          li.remove();
+          setTimeout(() => {
+            const parent = side === 'w' ? bottomHandEl : topHandEl;
+            if (parent) parent.appendChild(createCard(pickChaosRuleByRarity(), side));
+          }, 30000);
+        }, 400);
+        return;
+      }
+      if (isTimed) {
+        const timerEl = li.querySelector('.timer');
+        const dur = 5000 + Math.floor(Math.random() * 20000); // 5s..25s
+        const endsAt = Date.now() + dur;
+        li.classList.add('active');
+        if (timerEl) timerEl.textContent = `${Math.ceil(dur / 1000)}s`;
+        activeCardTimers.add({ id: Math.random(), elTimer: timerEl, endsAt, side, rule, cardEl: li });
+        // Enable timed effect immediately without waiting for a move
+        setChaosRule(rule, { side });
+        setTimeout(() => {
+          const parent = side === 'w' ? bottomHandEl : topHandEl;
+          if (parent) parent.appendChild(createCard(pickChaosRuleByRarity(), side));
+        }, 30000);
+      }
+    });
+    return li;
+  }
   function shuffle(arr) { for (let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
   function listEmptySquares() {
     const out = [];
@@ -572,13 +624,13 @@
     return out;
   }
 
-  function setChaosRule(rule) {
+  function setChaosRule(rule, ctx) {
     if (chaosActiveRule && chaosActiveRule.onDisable) chaosActiveRule.onDisable();
     chaosActiveRule = rule;
     chaosRuleEl.textContent = rule ? `${rule.name}: ${rule.desc}` : '';
     if (chaosRarityEl) chaosRarityEl.textContent = rule ? `Rarity: ${rule.rarity}` : '';
     resetChaosVisuals();
-    if (rule && rule.onEnable) rule.onEnable();
+    if (rule && rule.onEnable) rule.onEnable(ctx);
     highlightActiveRuleInList();
   }
 
@@ -588,19 +640,35 @@
   }
 
   function startChaosTicker() {
+    // Drive per-card countdowns only
     if (chaosTickerId) clearInterval(chaosTickerId);
-    if (hasGameStarted) scheduleChaos();
+    if (chaosCountdownSpan) chaosCountdownSpan.textContent = '—';
     chaosTickerId = setInterval(() => {
-      const remain = hasGameStarted ? Math.max(0, chaosDeadlineTs - Date.now()) : 0;
-      if (chaosCountdownSpan) chaosCountdownSpan.textContent = hasGameStarted ? `${Math.ceil(remain / 1000)}s` : '—';
-      if (forcedGameOver) { clearInterval(chaosTickerId); chaosTickerId = null; return; }
-      if (hasGameStarted && remain <= 0) {
-        // New rule time: pick random and replace previous
-        setChaosRule(pickChaosRuleByRarity());
-        detectForcedGameOver();
-        scheduleChaos();
-        renderBoard();
-        updateStatus();
+      const now = Date.now();
+      for (const t of Array.from(activeCardTimers)) {
+        const ms = Math.max(0, t.endsAt - now);
+        if (t.elTimer) t.elTimer.textContent = `${Math.ceil(ms / 1000)}s`;
+        // outline color thresholds
+        const secs = Math.ceil(ms / 1000);
+        if (t.cardEl) {
+          t.cardEl.classList.toggle('state-warning', secs <= 6 && secs > 3);
+          t.cardEl.classList.toggle('state-danger', secs <= 3 && secs > 0);
+        }
+        if (ms <= 0) {
+          activeCardTimers.delete(t);
+          if (t.cardEl) {
+            const parent = t.cardEl.parentElement;
+            t.cardEl.classList.add('explode');
+            setTimeout(() => {
+              t.cardEl.remove();
+              // auto-deal a replacement after 30s from now
+              setTimeout(() => {
+                const container = t.side === 'w' ? bottomHandEl : topHandEl;
+                if (container) container.appendChild(createCard(pickChaosRuleByRarity(), t.side));
+              }, 30000);
+            }, 300);
+          }
+        }
       }
     }, 250);
   }
@@ -629,6 +697,7 @@
   startChaosTicker();
   resetClocks();
   renderAllRulesList();
+  renderHands();
   
     function squareAt(fileIndex, rankIndexFromTop) {
       // rankIndexFromTop: 0..7 from top of UI
@@ -917,6 +986,11 @@
           // Start standard position: White to move
           game.reset();
           selected = null; legalDests.clear(); lastMoveSquares = [];
+          // Stop all chaos and clear active timers/cards
+          activeCardTimers.clear();
+          if (topHandEl) topHandEl.innerHTML = '';
+          if (bottomHandEl) bottomHandEl.innerHTML = '';
+          renderHands();
           resetClocks();
           startClockForTurn();
           renderBoard(); updateStatus();

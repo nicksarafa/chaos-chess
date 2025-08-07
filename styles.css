@@ -27,11 +27,23 @@
   }
   .controls button:hover { filter: brightness(1.1); }
   .main { display: grid; grid-template-columns: auto 260px; gap: 16px; align-items: start; }
-  .board-wrap { position: relative; }
+.board-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.board-shell { position: relative; }
+.coords.files { position: absolute; left: 0; right: 0; bottom: -18px; }
+.coords.ranks { position: absolute; top: 0; left: -18px; }
   .board {
     display: grid; grid-template-columns: repeat(8, var(--square)); grid-template-rows: repeat(8, var(--square));
     border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    cursor: pointer;
   }
+.hand-row { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.card { width: 140px; min-height: 150px; }
+.card .timer { margin-top: 8px; font-size: 20px; font-weight: 800; color: #ffd966; text-align: center; }
+.card.active { outline: 3px solid #2ecc71; }
+.card.state-warning { outline-color: #ffd166; }
+.card.state-danger { outline-color: #ff6b6b; }
+.card.explode { animation: pop-out 280ms ease forwards; }
+@keyframes pop-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.15); opacity: 0; } }
   .square { display:flex; align-items:center; justify-content:center; line-height: 1; user-select: none; }
   .square .piece-img { width: calc(var(--square) * 0.9); height: calc(var(--square) * 0.9); pointer-events: none; }
   .square.light { background: var(--light); }
@@ -72,4 +84,14 @@
   #promoChoices button { font-size: 28px; padding: 8px 0; border-radius: 8px; border: 1px solid #2a2a2a; background: #2a2a30; color: var(--text); cursor: pointer; }
   #promoChoices button:hover { filter: brightness(1.15); }
   
+  @media (min-width: 901px) { :root { --square: 84px; } }
   @media (max-width: 900px) { :root { --square: 56px; } .main { grid-template-columns: 1fr; } .sidebar { order: 2; } .board-wrap { order: 1; } }
+
+  /* Balatro-style hands */
+  .hands { margin-top: 16px; }
+  .hand { list-style: none; padding: 0; margin: 8px 0 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .card { width: 120px; min-height: 120px; padding: 10px; border-radius: 10px; border: 1px solid #2a2a2a; background: #12151c; box-shadow: 0 6px 14px rgba(0,0,0,0.35); cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; }
+  .card:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .card .name { font-weight: 700; margin-bottom: 6px; }
+  .card .desc { font-size: 12px; color: #c9c9c9; }
+  .card .rarity { display: inline-block; margin-top: 6px; padding: 2px 6px; border-radius: 999px; border: 1px solid #2a2a2a; background: #0f1217; }
