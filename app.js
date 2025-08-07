@@ -553,7 +553,7 @@
         setChaosRule(rule, { side });
         setTimeout(() => {
           const parent = side === 'w' ? bottomHandEl : topHandEl;
-          if (parent) parent.appendChild(createCard(pickChaosRuleByRarity(), side));
+          if (parent && parent.children.length < 5) parent.appendChild(createCard(pickChaosRuleByRarity(), side));
         }, 30000);
       }
     });
@@ -625,12 +625,16 @@
   }
 
   function setChaosRule(rule, ctx) {
-    if (chaosActiveRule && chaosActiveRule.onDisable) chaosActiveRule.onDisable();
+    // Mark last-activated rule for display; do not disable others
     chaosActiveRule = rule;
     chaosRuleEl.textContent = rule ? `${rule.name}: ${rule.desc}` : '';
     if (chaosRarityEl) chaosRarityEl.textContent = rule ? `Rarity: ${rule.rarity}` : '';
-    resetChaosVisuals();
-    if (rule && rule.onEnable) rule.onEnable(ctx);
+    if (rule && rule.onEnable) {
+      rule.onEnable(ctx);
+      // Ensure immediate effects reflect on the board
+      selected = null; legalDests.clear();
+      renderBoard(); updateStatus();
+    }
     highlightActiveRuleInList();
   }
 
