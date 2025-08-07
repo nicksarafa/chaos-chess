@@ -32,7 +32,8 @@
     display: grid; grid-template-columns: repeat(8, var(--square)); grid-template-rows: repeat(8, var(--square));
     border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
   }
-  .square { display:flex; align-items:center; justify-content:center; font-size: calc(var(--square) * 0.7); line-height: 1; user-select: none; }
+  .square { display:flex; align-items:center; justify-content:center; line-height: 1; user-select: none; }
+  .square .piece-img { width: calc(var(--square) * 0.9); height: calc(var(--square) * 0.9); pointer-events: none; }
   .square.light { background: var(--light); }
   .square.dark { background: var(--dark); }
   .square.sel { outline: 3px solid var(--accent); outline-offset: -3px; }

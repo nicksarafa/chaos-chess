@@ -20,9 +20,19 @@
     let legalDests = new Set();
     let lastMoveSquares = [];
   
-    const unicode = {
-      'wp':'♙','wn':'♘','wb':'♗','wr':'♖','wq':'♕','wk':'♔',
-      'bp':'♟','bn':'♞','bb':'♝','br':'♜','bq':'♛','bk':'♚'
+    const pieceImage = {
+      wp: 'assets/pieces/cburnett/Chess_plt45.svg',
+      wn: 'assets/pieces/cburnett/Chess_nlt45.svg',
+      wb: 'assets/pieces/cburnett/Chess_blt45.svg',
+      wr: 'assets/pieces/cburnett/Chess_rlt45.svg',
+      wq: 'assets/pieces/cburnett/Chess_qlt45.svg',
+      wk: 'assets/pieces/cburnett/Chess_klt45.svg',
+      bp: 'assets/pieces/cburnett/Chess_pdt45.svg',
+      bn: 'assets/pieces/cburnett/Chess_ndt45.svg',
+      bb: 'assets/pieces/cburnett/Chess_bdt45.svg',
+      br: 'assets/pieces/cburnett/Chess_rdt45.svg',
+      bq: 'assets/pieces/cburnett/Chess_qdt45.svg',
+      bk: 'assets/pieces/cburnett/Chess_kdt45.svg',
     };
   
     // Initialize chess game
@@ -129,7 +139,15 @@
   
           if (pieceInfo) {
             const key = `${pieceInfo.color}${pieceInfo.type}`;
-            sqEl.textContent = unicode[key];
+            const imgSrc = pieceImage[key];
+            if (imgSrc) {
+              const img = document.createElement('img');
+              img.src = imgSrc;
+              img.alt = key;
+              img.draggable = false;
+              img.className = 'piece-img';
+              sqEl.appendChild(img);
+            }
           }
   
           if (lastMoveSquares.includes(square)) {
