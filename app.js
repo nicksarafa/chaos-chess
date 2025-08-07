@@ -17,18 +17,10 @@
     const promoChoicesEl = promoModal.querySelector('#promoChoices');
 
   // Chaos UI
-  const chaosTimerEl = document.createElement('div');
-  chaosTimerEl.id = 'chaosTimer';
-  chaosTimerEl.style.marginTop = '6px';
-  const chaosRuleEl = document.createElement('div');
-  chaosRuleEl.id = 'chaosRule';
-  const statusBox = document.querySelector('.status');
-  if (statusBox) {
-    const h = document.createElement('div');
-    h.innerHTML = '<strong>Chaos:</strong> <span id="chaosCountdown"></span>';
-    statusBox.appendChild(h);
-    statusBox.appendChild(chaosRuleEl);
-  }
+  const chaosRuleEl = document.getElementById('chaosRule');
+  const chaosRarityEl = document.getElementById('chaosRarity');
+  // re-declared earlier
+  const allRulesEl = document.getElementById('allRules');
   
     const files = ['a','b','c','d','e','f','g','h'];
     let orientation = 'w'; // White at bottom by default
@@ -117,9 +109,11 @@
   let fogHideColor = null; // 'w' or 'b' to dim that side's pieces
   let forcedGameOver = false;
   let forcedGameOverMessage = '';
+  let hasGameStarted = false;
 
   const CHAOS_RULES = [
     {
+      rarity: 'rare',
       key: 'meteor',
       name: 'Meteor Strike',
       desc: 'A random non-king piece is obliterated on impact.',
@@ -136,6 +130,7 @@
       onDisable() {}
     },
     {
+      rarity: 'rare',
       key: 'power',
       name: 'Power Surge',
       desc: 'After each move, one of mover\'s pieces upgrades to a queen.',
@@ -153,6 +148,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'trickster',
       name: 'Trickster Swap',
       desc: 'After each move, swap the moved piece with a random friendly piece (not king).',
@@ -175,6 +171,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'blinkSelf',
       name: 'Blink (Self)',
       desc: 'After each move, a random friendly non-king teleports to a random empty square.',
@@ -194,6 +191,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'blinkEnemy',
       name: 'Blink (Enemy)',
       desc: 'After each move, a random enemy non-king teleports to a random empty square.',
@@ -214,6 +212,7 @@
       onDisable() {}
     },
     {
+      rarity: 'common',
       key: 'pawnHop',
       name: 'Pawn Hop',
       desc: "After each move, a random friendly pawn hops forward one square if it's empty.",
@@ -236,6 +235,7 @@
       onDisable() {}
     },
     {
+      rarity: 'rare',
       key: 'berserker',
       name: 'Berserker',
       desc: 'After each move, if the moved piece can capture immediately, it performs a random capture.',
@@ -250,6 +250,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'healingRain',
       name: 'Healing Rain',
       desc: 'One-time: summon a random minor piece for each side on a random empty home-half square.',
@@ -267,6 +268,7 @@
       onDisable() {}
     },
     {
+      rarity: 'common',
       key: 'veil',
       name: 'Veil of Shadows',
       desc: 'Opponent pieces are veiled (dimmed).',
@@ -279,6 +281,7 @@
       onDisable() { fogHideColor = null; }
     },
     {
+      rarity: 'legendary',
       key: 'cornerLava',
       name: 'Corner Lava',
       desc: 'Any piece in a corner square is burned away (kings are immune).',
@@ -293,6 +296,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'spectralSwap',
       name: 'Spectral Swap',
       desc: 'After each move, swap two random friendly non-king pieces.',
@@ -314,6 +318,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'frenzy',
       name: 'Frenzy',
       desc: 'After each move, a random friendly pawn mutates into a random piece (Q/R/B/N).',
@@ -330,6 +335,7 @@
       onDisable() {}
     },
     {
+      rarity: 'legendary',
       key: 'queenless',
       name: 'Queenless Chaos',
       desc: 'One-time: all queens vanish from the board.',
@@ -342,6 +348,7 @@
       onDisable() {}
     },
     {
+      rarity: 'rare',
       key: 'knightRain',
       name: 'Knight Rain',
       desc: 'One-time: a random knight spawns for each side in its home half.',
@@ -358,6 +365,7 @@
       onDisable() {}
     },
     {
+      rarity: 'common',
       key: 'rookRoll',
       name: 'Rook Roll',
       desc: 'After each move, a random friendly rook slides one file left/right if empty.',
@@ -382,6 +390,7 @@
       onDisable() {}
     },
     {
+      rarity: 'common',
       key: 'bishopSlide',
       name: 'Bishop Slide',
       desc: 'After each move, a random friendly bishop slides one random diagonal if empty.',
@@ -407,6 +416,7 @@
       onDisable() {}
     },
     {
+      rarity: 'common',
       key: 'enemyNudge',
       name: 'Enemy Nudge',
       desc: 'After each move, a random enemy pawn advances one square if empty.',
@@ -430,6 +440,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'pawnExplosion',
       name: 'Pawn Explosion',
       desc: 'After each move, remove one random pawn from each side (if any).',
@@ -447,6 +458,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'wallBuilder',
       name: 'Wall Builder',
       desc: 'After each move, spawn a friendly pawn on rank 3 (White) / 6 (Black) at a random empty file.',
@@ -462,6 +474,7 @@
       onDisable() {}
     },
     {
+      rarity: 'uncommon',
       key: 'jester',
       name: 'Jester',
       desc: 'After each move, mutate a random friendly non-king piece into another type (Q/R/B/N/P).',
@@ -484,6 +497,16 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
   function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function pickChaosRuleByRarity() {
+    // Weighted rarity selection: common 50%, uncommon 30%, rare 15%, legendary 5%
+    const roll = Math.random();
+    let target = 'common';
+    if (roll < 0.05) target = 'legendary';
+    else if (roll < 0.20) target = 'rare';
+    else if (roll < 0.50) target = 'uncommon';
+    const pool = CHAOS_RULES.filter(r => r.rarity === target);
+    return randomChoice(pool.length ? pool : CHAOS_RULES);
+  }
   function shuffle(arr) { for (let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
   function listEmptySquares() {
     const out = [];
@@ -553,8 +576,10 @@
     if (chaosActiveRule && chaosActiveRule.onDisable) chaosActiveRule.onDisable();
     chaosActiveRule = rule;
     chaosRuleEl.textContent = rule ? `${rule.name}: ${rule.desc}` : '';
+    if (chaosRarityEl) chaosRarityEl.textContent = rule ? `Rarity: ${rule.rarity}` : '';
     resetChaosVisuals();
     if (rule && rule.onEnable) rule.onEnable();
+    highlightActiveRuleInList();
   }
 
   function scheduleChaos() {
@@ -564,14 +589,14 @@
 
   function startChaosTicker() {
     if (chaosTickerId) clearInterval(chaosTickerId);
-    scheduleChaos();
+    if (hasGameStarted) scheduleChaos();
     chaosTickerId = setInterval(() => {
-      const remain = Math.max(0, chaosDeadlineTs - Date.now());
-      if (chaosCountdownSpan) chaosCountdownSpan.textContent = `${Math.ceil(remain / 1000)}s`;
+      const remain = hasGameStarted ? Math.max(0, chaosDeadlineTs - Date.now()) : 0;
+      if (chaosCountdownSpan) chaosCountdownSpan.textContent = hasGameStarted ? `${Math.ceil(remain / 1000)}s` : '—';
       if (forcedGameOver) { clearInterval(chaosTickerId); chaosTickerId = null; return; }
-      if (remain <= 0) {
+      if (hasGameStarted && remain <= 0) {
         // New rule time: pick random and replace previous
-        setChaosRule(randomChoice(CHAOS_RULES));
+        setChaosRule(pickChaosRuleByRarity());
         detectForcedGameOver();
         scheduleChaos();
         renderBoard();
@@ -580,10 +605,30 @@
     }, 250);
   }
 
-  // start chaos system and chess clock after DOM is ready
+  function renderAllRulesList() {
+    if (!allRulesEl) return;
+    allRulesEl.innerHTML = '';
+    CHAOS_RULES.forEach((r, idx) => {
+      const li = document.createElement('li');
+      li.className = 'rule-item';
+      li.dataset.ruleKey = r.key;
+      li.innerHTML = `<div class="name">${r.name} <span class="rarity ${r.rarity}">${r.rarity}</span></div><div class="desc">${r.desc}</div>`;
+      allRulesEl.appendChild(li);
+    });
+  }
+  function highlightActiveRuleInList() {
+    if (!allRulesEl) return;
+    const items = allRulesEl.querySelectorAll('.rule-item');
+    items.forEach(it => it.classList.remove('active'));
+    if (!chaosActiveRule) return;
+    const active = allRulesEl.querySelector(`.rule-item[data-rule-key="${chaosActiveRule.key}"]`);
+    if (active) active.classList.add('active');
+  }
+
+  // start chaos system after DOM is ready (but do not start countdown until first move)
   startChaosTicker();
   resetClocks();
-  startClockForTurn();
+  renderAllRulesList();
   
     function squareAt(fileIndex, rankIndexFromTop) {
       // rankIndexFromTop: 0..7 from top of UI
@@ -770,7 +815,14 @@
         lastMoveSquares = [from, to];
         selected = null;
         legalDests.clear();
-        switchClock();
+        // On the very first move of the game, start the clocks and chaos countdown
+        if (!hasGameStarted) {
+          hasGameStarted = true;
+          startClockForTurn();
+          scheduleChaos();
+        } else {
+          switchClock();
+        }
         renderBoard();
         updateStatus();
       } catch (_) {
